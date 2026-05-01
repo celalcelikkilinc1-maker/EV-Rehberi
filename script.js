@@ -1,6 +1,6 @@
 /* 
    Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Teknolojisi 
-   EV-Asistan | Geliştirilmiş Dinamik Veri Modülü
+   EV-Asistan | Akıllı Eşleştirme ve Hata Giderme v3
 */
 
 const questions = [
@@ -10,7 +10,7 @@ const questions = [
         { text: "Sınır Yok", value: 999999999 }
     ]},
     { id: "segment", text: "Hangi araç tipi size daha uygun?", options: [
-        { text: "Şehir içi (Hatchback)", value: "hatch" }, // Kısmi arama için
+        { text: "Şehir içi (Hatchback)", value: "hatch" },
         { text: "Aile / Geniş (SUV)", value: "suv" },
         { text: "Konfor / Makam (Sedan)", value: "sedan" }
     ]},
@@ -52,19 +52,17 @@ async function showResults() {
     document.getElementById("quiz-container").classList.add("hidden");
     document.getElementById("result-container").classList.remove("hidden");
     const carList = document.getElementById("car-list");
-    carList.innerHTML = "<p>Veriler taranıyor...</p>";
+    carList.innerHTML = "<p>Veritabanı taranıyor...</p>";
 
     try {
         const response = await fetch('ev_veritabani_TR_fiyatli_3.csv');
         const text = await response.text();
         const lines = text.split('\n').filter(l => l.trim() !== "");
-        
         const parseRow = (row) => row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
         const headers = parseRow(lines[0]).map(h => h.trim().toLowerCase());
-        
-        // Sütun İndekslerini Bul
+
+        // Sütunları Tespit Et
         const findIdx = (keys) => headers.findIndex(h => keys.some(k => h.includes(k)));
-        
         const modelIdx = findIdx(["model"]) || 0;
         const priceIdx = findIdx(["fiyat", "tl", "price"]);
         const rangeIdx = findIdx(["range", "menzil"]);
@@ -72,42 +70,44 @@ async function showResults() {
         const imgIdx = findIdx(["resim", "link", "image", "img"]);
         const segmentIdx = findIdx(["segment", "gövde"]);
 
-        const filtered = lines.slice(1).map(parseRow).filter(cols => {
+        const results = lines.slice(1).map(parseRow).filter(cols => {
             if (cols.length < 5) return false;
 
-            // Fiyatı Sayıya Çevir (N/A olsa bile hata vermez)
+            // Fiyatı ve Menzili Sayıya Çevir
             const rawPrice = cols[priceIdx] ? cols[priceIdx].replace(/[^0-9]/g, '') : "";
             const price = parseInt(rawPrice) || 0;
             const range = parseInt(cols[rangeIdx]) || 0;
             const hp = (cols[hpIdx] || "").toLowerCase();
             const segment = (cols[segmentIdx] || "").toLowerCase();
 
-            // ESNEK FİLTRELEME
-            const budgetOk = (price === 0 || price <= userChoices.budget);
-            const rangeOk = range >= userChoices.range;
-            const hpOk = (userChoices.heatpump === "all" || hp.includes("yes") || hp.includes("evet"));
-            const segmentOk = segment.includes(userChoices.segment);
+            // ESNEK FİLTRELEME MANTIĞI
+            const budgetMatch = (price === 0 || price <= userChoices.budget);
+            const rangeMatch = (range === 0 || range >= userChoices.range);
+            const hpMatch = (userChoices.heatpump === "all" || hp.includes("yes") || hp.includes("evet"));
+            // Segment içinde seçilen kelime geçiyor mu? (Örn: "Small SUV" içinde "suv" geçer)
+            const segmentMatch = segment.includes(userChoices.segment);
 
-            return budgetOk && rangeOk && hpOk && segmentOk;
+            return budgetMatch && rangeMatch && hpMatch && segmentMatch;
         }).slice(0, 8);
 
-        if (filtered.length === 0) {
-            carList.innerHTML = "<p>Kriterlere uygun sonuç bulunamadı. Lütfen filtreleri esneterek tekrar deneyin.</p>";
+        if (results.length === 0) {
+            carList.innerHTML = `<p>Aradığınız kriterlerde araç bulunamadı.<br><br>
+                                 <b>İpucu:</b> Bütçeyi "Sınır Yok", Menzili "300km+" seçerek tekrar deneyin.</p>`;
         } else {
-            carList.innerHTML = filtered.map(cols => `
+            carList.innerHTML = results.map(cols => `
                 <div class="car-card">
                     <img src="${cols[imgIdx] ? cols[imgIdx].replace(/"/g, '').trim() : ''}" 
                          alt="${cols[modelIdx]}" 
-                         onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Hazirlaniyor'">
+                         onerror="this.src='https://via.placeholder.com/400x250?text=Resim+Hazirlaniyor'">
                     <h3>${cols[modelIdx].replace(/"/g, '')}</h3>
-                    <p><strong>Menzil:</strong> ${cols[rangeIdx]} km</p>
-                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase().includes('yes') ? '✅ Var' : '❌ Yok'}</p>
-                    <p class="price-tag">Fiyat: ${cols[priceIdx] || 'N/A'}</p>
+                    <p><strong>Menzil:</strong> ${cols[rangeIdx] || 'Bilinmiyor'} km</p>
+                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase().includes('yes') || cols[hpIdx].toLowerCase().includes('evet') ? '✅ Mevcut' : '❌ Yok'}</p>
+                    <p class="price-tag">Tahmini Fiyat: ${cols[priceIdx] || 'Bilinmiyor'}</p>
                 </div>
             `).join('');
         }
     } catch (e) {
-        carList.innerHTML = "<p>Bağlantı hatası! Lütfen CSV dosyasının adını kontrol edin.</p>";
+        carList.innerHTML = "<p>Bağlantı hatası! Lütfen CSV dosyasını GitHub'a yüklediğinizden emin olun.</p>";
     }
 }
 
