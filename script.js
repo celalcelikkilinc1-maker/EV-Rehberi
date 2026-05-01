@@ -1,3 +1,8 @@
+/* 
+   Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Teknolojisi 
+   Proje: EV-Asistan 
+*/
+
 const questions = [
     {
         id: "budget",
@@ -5,7 +10,7 @@ const questions = [
         options: [
             { text: "1.500.000 TL Altı", value: 1500000 },
             { text: "1.500.000 - 3.000.000 TL", value: 3000000 },
-            { text: "Sınır Yok", value: Infinity }
+            { text: "Sınır Yok", value: 100000000 }
         ]
     },
     {
@@ -63,13 +68,56 @@ function selectOption(id, value) {
     }
 }
 
-function showResults() {
+async function showResults() {
     document.getElementById("quiz-container").classList.add("hidden");
     document.getElementById("result-container").classList.remove("hidden");
     const carList = document.getElementById("car-list");
-    carList.innerHTML = "<p style='color:white'>Veritabanı taranıyor... Seçimlerinize göre en iyi modeller listelenecek.</p>";
-    
-    // Not: CSV okuma işlemi için fetch fonksiyonu buraya eklenebilir.
+    carList.innerHTML = "<p>Uygun araçlar hesaplanıyor...</p>";
+
+    try {
+        const response = await fetch('ev_veritabani_TR_fiyatli.csv');
+        const data = await response.text();
+        const rows = data.split('\n');
+        const headers = rows[0].split(',');
+        
+        // Sütun indekslerini bulalım (CSV yapısına göre)
+        const modelIdx = headers.indexOf('Model');
+        const priceIdx = headers.indexOf('Tahmini_TR_Fiyati_TL');
+        const rangeIdx = headers.indexOf('Electric Range *');
+        const hpIdx = headers.indexOf('Heat pump (HP)');
+        const segmentIdx = headers.indexOf('Segment');
+
+        const results = rows.slice(1).map(row => row.split(',')).filter(cols => {
+            if (cols.length < 10) return false;
+            
+            const price = parseFloat(cols[priceIdx]) || 0;
+            const range = parseInt(cols[rangeIdx]) || 0;
+            const hp = cols[hpIdx];
+            const segment = cols[segmentIdx];
+
+            const budgetMatch = price <= userChoices.budget;
+            const rangeMatch = range >= userChoices.range;
+            const hpMatch = userChoices.heatpump === "All" || hp === "Yes";
+            const segmentMatch = segment.includes(userChoices.segment);
+
+            return budgetMatch && rangeMatch && hpMatch && segmentMatch;
+        }).slice(0, 5);
+
+        if (results.length === 0) {
+            carList.innerHTML = "<p>Kriterlerinize uygun araç bulunamadı.</p>";
+        } else {
+            carList.innerHTML = results.map(cols => `
+                <div class="car-card">
+                    <h3>${cols[modelIdx]}</h3>
+                    <p><strong>Menzil:</strong> ${cols[rangeIdx]} km</p>
+                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx] === 'Yes' ? 'Var' : 'Yok'}</p>
+                    <p><strong>Tahmini Fiyat:</strong> ${parseFloat(cols[priceIdx]).toLocaleString('tr-TR')} TL</p>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        carList.innerHTML = "<p>Veritabanı okunurken bir hata oluştu.</p>";
+    }
 }
 
 showQuestion();
