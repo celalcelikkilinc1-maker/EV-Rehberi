@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV-Finder | En Uygun Elektrikli Aracını Bul</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ EV-Finder</h1>
+            <p>Senin için en ideal elektrikli aracı beraber seçelim.</p>
+        </header>
+
+        <div id="quiz-container">
+            <!-- Sorular Buraya Gelecek -->
+            <div id="question-box">
+                <h2 id="question-text">Yükleniyor...</h2>
+                <div id="options-container"></div>
+            </div>
+        </div>
+
+        <div id="result-container" class="hidden">
+            <h2>Senin İçin En Uygun Araçlar:</h2>
+            <div id="car-list"></div>
+            <button onclick="location.reload()" class="reset-btn">Testi Tekrarla</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a2e;
+    color: white;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    width: 100%;
+    text-align: center;
+}
+
+header h1 {
+    color: #00d2ff;
+    font-size: 3rem;
+}
+
+#question-box {
+    background: #16213e;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    margin-top: 30px;
+}
+
+.option-btn {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 8px;
+    background: #0f3460;
+    color: white;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.option-btn:hover {
+    background: #e94560;
+}
+
+.car-card {
+    background: #fff;
+    color: #333;
+    margin: 15px 0;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: left;
+}const questions = [
+    {
+        id: "budget",
+        text: "Maksimum bütçeniz ne kadar?",
+        options: [
+            { text: "1.500.000 TL Altı", value: 1500000 },
+            { text: "1.500.000 - 3.000.000 TL", value: 3000000 },
+            { text: "Sınır Yok", value: Infinity }
+        ]
+    },
+    {
+        id: "segment",
+        text: "Hangi araç tipi size daha uygun?",
+        options: [
+            { text: "Şehir içi (Hatchback)", value: "Hatchback" },
+            { text: "Aile / Geniş (SUV)", value: "SUV" },
+            { text: "Konfor / Makam (Sedan)", value: "Sedan" }
+        ]
+    },
+    {
+        id: "range",
+        text: "Beklediğiniz minimum menzil nedir?",
+        options: [
+            { text: "300 km+", value: 300 },
+            { text: "500 km+", value: 500 }
+        ]
+    },
+    {
+        id: "heatpump",
+        text: "Kışın menzil kaybını önleyen Isı Pompası (Heat Pump) sizin için şart mı?",
+        options: [
+            { text: "Evet, mutlaka olmalı", value: "Yes" },
+            { text: "Fark etmez", value: "All" }
+        ]
+    }
+];
+
+let currentQuestionIndex = 0;
+let userChoices = {};
+
+function showQuestion() {
+    const q = questions[currentQuestionIndex];
+    document.getElementById("question-text").innerText = q.text;
+    const container = document.getElementById("options-container");
+    container.innerHTML = "";
+
+    q.options.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.innerText = opt.text;
+        btn.className = "option-btn";
+        btn.onclick = () => selectOption(q.id, opt.value);
+        container.appendChild(btn);
+    });
+}
+
+function selectOption(id, value) {
+    userChoices[id] = value;
+    currentQuestionIndex++;
+    if (currentQuestionIndex < questions.length) {
+        showQuestion();
+    } else {
+        showResults();
+    }
+}
+
+async function showResults() {
+    document.getElementById("quiz-container").classList.add("hidden");
+    document.getElementById("result-container").classList.remove("hidden");
+    
+    // csv_veritabani_TR_fiyatli.csv dosyasını burada fetch ile okumalısın
+    // Şimdilik mantığı simüle ediyoruz:
+    const carList = document.getElementById("car-list");
+    carList.innerHTML = "Veriler analiz ediliyor... (Filtreleme: Bütçe, Menzil ve Isı Pompası)";
+    
+    // Filtreleme örneği:
+    // results = allCars.filter(car => car.Fiyat <= userChoices.budget && car.HP === userChoices.heatpump);
+}
+
+showQuestion();
+
+.hidden { display: none; }
