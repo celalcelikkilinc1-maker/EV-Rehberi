@@ -1,63 +1,9 @@
 /* 
    Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Teknolojisi 
-   Proje: EV-Asistan | Hata Giderme Modülü
+   Proje: EV-Asistan | Fiyat ve Resim Onarım Modülü
 */
 
-const questions = [
-    { id: "budget", text: "Maksimum bütçeniz ne kadar?", options: [
-        { text: "1.500.000 TL Altı", value: 1500000 },
-        { text: "1.500.000 - 3.000.000 TL", value: 3000000 },
-        { text: "Sınır Yok", value: 999999999 }
-    ]},
-    { id: "segment", text: "Hangi araç tipi size daha uygun?", options: [
-        { text: "Hatchback (Şehir içi)", value: "Hatchback" },
-        { text: "SUV (Aile/Geniş)", value: "SUV" },
-        { text: "Sedan (Konfor)", value: "Sedan" }
-    ]},
-    { id: "range", text: "Beklediğiniz minimum menzil nedir?", options: [
-        { text: "300 km+", value: 300 },
-        { text: "500 km+", value: 500 }
-    ]},
-    { id: "heatpump", text: "Isı Pompası (Heat Pump) sizin için şart mı?", options: [
-        { text: "Evet, mutlaka olmalı", value: "Yes" },
-        { text: "Fark etmez", value: "All" }
-    ]}
-];
-
-let currentQuestionIndex = 0;
-let userChoices = {};
-
-function showQuestion() {
-    const q = questions[currentQuestionIndex];
-    document.getElementById("question-text").innerText = q.text;
-    const container = document.getElementById("options-container");
-    container.innerHTML = "";
-    q.options.forEach(opt => {
-        const btn = document.createElement("button");
-        btn.innerText = opt.text;
-        btn.className = "option-btn";
-        btn.onclick = () => selectOption(q.id, opt.value);
-        container.appendChild(btn);
-    });
-}
-
-function selectOption(id, value) {
-    userChoices[id] = value;
-    currentQuestionIndex++;
-    if (currentQuestionIndex < questions.length) { showQuestion(); } 
-    else { showResults(); }
-}
-
-// CSV satırlarını güvenli bir şekilde bölen fonksiyon (Hücre içindeki virgülleri korur)
-function parseCSVRow(row) {
-    const regex = /(?:"([^"]*)"|([^,;]+))/g;
-    let matches = [];
-    let match;
-    while ((match = regex.exec(row)) !== null) {
-        matches.push(match[1] || match[2]);
-    }
-    return matches;
-}
+// ... (sorular kısmı aynı kalsın) ...
 
 async function showResults() {
     document.getElementById("quiz-container").classList.add("hidden");
@@ -68,47 +14,59 @@ async function showResults() {
     try {
         const response = await fetch('ev_veritabani_TR_fiyatli_2.csv');
         const text = await response.text();
-        const lines = text.split('\n').filter(l => l.trim() !== "");
-        const headers = parseCSVRow(lines[0]).map(h => h.trim().toLowerCase());
+        
+        // Satırları ayır ve boş satırları temizle
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
 
-        // Sütunları isimden bul
-        const modelIdx = headers.findIndex(h => h.includes("model"));
-        const priceIdx = headers.findIndex(h => h.includes("fiyat") || h.includes("tl"));
+        // Sütun İndekslerini Manuel Sabitleme veya Akıllı Arama
+        const modelIdx = headers.findIndex(h => h.includes("model")) || 0;
+        const priceIdx = headers.findIndex(h => h.includes("fiyat") || h.includes("tl") || h.includes("price"));
         const rangeIdx = headers.findIndex(h => h.includes("range") || h.includes("menzil"));
         const hpIdx = headers.findIndex(h => h.includes("heat pump") || h.includes("isi pompasi"));
-        const imgIdx = headers.findIndex(h => h.includes("resim") || h.includes("link") || h.includes("image"));
+        const imgIdx = headers.findIndex(h => h.includes("resim") || h.includes("link") || h.includes("img"));
         const segmentIdx = headers.findIndex(h => h.includes("segment"));
 
-        const results = lines.slice(1).map(parseCSVRow).filter(cols => {
+        const results = lines.slice(1).map(line => {
+            // Virgül ile ayırırken tırnak içindeki virgülleri koruyan gelişmiş bölme
+            return line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        }).filter(cols => {
             if (cols.length < 5) return false;
 
-            const price = parseInt(cols[priceIdx].replace(/[^0-9]/g, '')) || 0;
+            // Fiyat temizleme: "1.500.000 TL" -> 1500000
+            const rawPrice = cols[priceIdx] ? cols[priceIdx].replace(/[^0-9]/g, '') : "0";
+            const price = parseInt(rawPrice) || 0;
             const range = parseInt(cols[rangeIdx]) || 0;
-            const hp = cols[hpIdx] ? cols[hpIdx].toLowerCase() : "";
-            const segment = cols[segmentIdx] ? cols[segmentIdx].toLowerCase() : "";
+            const hp = (cols[hpIdx] || "").toLowerCase();
+            const segment = (cols[segmentIdx] || "").toLowerCase();
 
-            return price <= userChoices.budget &&
-                   range >= userChoices.range &&
-                   (userChoices.heatpump === "All" || hp.includes("yes")) &&
-                   segment.includes(userChoices.segment.toLowerCase());
+            // Filtreleme Mantığı
+            const budgetMatch = price > 0 && price <= userChoices.budget;
+            const rangeMatch = range >= userChoices.range;
+            const hpMatch = userChoices.heatpump === "All" || hp.includes("yes");
+            const segmentMatch = segment.includes(userChoices.segment.toLowerCase());
+
+            return budgetMatch && rangeMatch && hpMatch && segmentMatch;
         }).slice(0, 6);
 
         if (results.length === 0) {
-            carList.innerHTML = "<p>Kriterlere uygun araç bulunamadı.</p>";
+            carList.innerHTML = "<p>Kriterlerinize uygun bir araç bulunamadı. Lütfen filtreleri (bütçe veya menzil) genişletmeyi deneyin.</p>";
         } else {
-            carList.innerHTML = results.map(cols => `
+            carList.innerHTML = results.map(cols => {
+                const finalPrice = cols[priceIdx] ? cols[priceIdx].trim() : "Fiyat Bilgisi Yok";
+                const finalImg = (cols[imgIdx] || "").replace(/"/g, '').trim();
+                
+                return `
                 <div class="car-card">
-                    <img src="${cols[imgIdx]}" alt="${cols[modelIdx]}" onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Yüklenemedi'">
-                    <h3>${cols[modelIdx]}</h3>
+                    <img src="${finalImg}" alt="${cols[modelIdx]}" onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Bulunamadi'">
+                    <h3>${cols[modelIdx].replace(/"/g, '')}</h3>
                     <p><strong>Menzil:</strong> ${cols[rangeIdx]} km</p>
-                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase().includes('yes') ? '✅ Var' : '❌ Yok'}</p>
-                    <p class="price-tag">Fiyat: ${cols[priceIdx]} TL</p>
-                </div>
-            `).join('');
+                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase().includes('yes') ? '✅ Mevcut' : '❌ Mevcut Değil'}</p>
+                    <p class="price-tag">Tahmini Fiyat: ${finalPrice} ${finalPrice.includes('TL') ? '' : 'TL'}</p>
+                </div>`;
+            }).join('');
         }
     } catch (e) {
-        carList.innerHTML = "<p>Veri çekme hatası! Lütfen CSV dosyasını kontrol edin.</p>";
+        carList.innerHTML = "<p>Veri yükleme hatası. Lütfen CSV dosyasının adını kontrol edin.</p>";
     }
 }
-
-showQuestion();
