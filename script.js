@@ -1,6 +1,6 @@
 /* 
    Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Teknolojisi 
-   Proje: EV-Asistan (Geliştirilmiş Versiyon)
+   Proje: EV-Asistan | Hata Giderme Modülü
 */
 
 const questions = [
@@ -10,9 +10,9 @@ const questions = [
         { text: "Sınır Yok", value: 999999999 }
     ]},
     { id: "segment", text: "Hangi araç tipi size daha uygun?", options: [
-        { text: "Şehir içi (Hatchback)", value: "Hatchback" },
-        { text: "Aile / Geniş (SUV)", value: "SUV" },
-        { text: "Konfor / Makam (Sedan)", value: "Sedan" }
+        { text: "Hatchback (Şehir içi)", value: "Hatchback" },
+        { text: "SUV (Aile/Geniş)", value: "SUV" },
+        { text: "Sedan (Konfor)", value: "Sedan" }
     ]},
     { id: "range", text: "Beklediğiniz minimum menzil nedir?", options: [
         { text: "300 km+", value: 300 },
@@ -48,61 +48,66 @@ function selectOption(id, value) {
     else { showResults(); }
 }
 
+// CSV satırlarını güvenli bir şekilde bölen fonksiyon (Hücre içindeki virgülleri korur)
+function parseCSVRow(row) {
+    const regex = /(?:"([^"]*)"|([^,;]+))/g;
+    let matches = [];
+    let match;
+    while ((match = regex.exec(row)) !== null) {
+        matches.push(match[1] || match[2]);
+    }
+    return matches;
+}
+
 async function showResults() {
     document.getElementById("quiz-container").classList.add("hidden");
     document.getElementById("result-container").classList.remove("hidden");
     const carList = document.getElementById("car-list");
-    carList.innerHTML = "<p>Sonuçlar hazırlanıyor, lütfen bekleyin...</p>";
+    carList.innerHTML = "<p>Veritabanı taranıyor...</p>";
 
     try {
         const response = await fetch('ev_veritabani_TR_fiyatli_2.csv');
-        const csvData = await response.text();
-        const rows = csvData.split('\n').map(row => row.split(','));
-        const headers = rows[0].map(h => h.trim());
+        const text = await response.text();
+        const lines = text.split('\n').filter(l => l.trim() !== "");
+        const headers = parseCSVRow(lines[0]).map(h => h.trim().toLowerCase());
 
-        // Esnek Sütun Bulma (Küçük/Büyük harf duyarsız)
-        const findIdx = (names) => headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
-        
-        const modelIdx = findIdx(['Model']);
-        const priceIdx = findIdx(['Fiyat', 'TL', 'Tahmini']);
-        const rangeIdx = findIdx(['Range', 'Menzil']);
-        const hpIdx = findIdx(['Heat pump', 'Isı Pompası']);
-        const imgIdx = findIdx(['Resim', 'Image', 'Link']);
-        const segmentIdx = findIdx(['Segment']);
+        // Sütunları isimden bul
+        const modelIdx = headers.findIndex(h => h.includes("model"));
+        const priceIdx = headers.findIndex(h => h.includes("fiyat") || h.includes("tl"));
+        const rangeIdx = headers.findIndex(h => h.includes("range") || h.includes("menzil"));
+        const hpIdx = headers.findIndex(h => h.includes("heat pump") || h.includes("isi pompasi"));
+        const imgIdx = headers.findIndex(h => h.includes("resim") || h.includes("link") || h.includes("image"));
+        const segmentIdx = headers.findIndex(h => h.includes("segment"));
 
-        const filtered = rows.slice(1).filter(cols => {
+        const results = lines.slice(1).map(parseCSVRow).filter(cols => {
             if (cols.length < 5) return false;
-            
-            // Fiyatı Sayıya Çevirme (Nokta, Virgül ve TL ibarelerini temizler)
-            const rawPrice = cols[priceIdx] ? cols[priceIdx].replace(/[^0-9]/g, '') : "0";
-            const price = parseInt(rawPrice) || 0;
+
+            const price = parseInt(cols[priceIdx].replace(/[^0-9]/g, '')) || 0;
             const range = parseInt(cols[rangeIdx]) || 0;
-            const hp = cols[hpIdx] ? cols[hpIdx].trim() : "";
-            const segment = cols[segmentIdx] ? cols[segmentIdx].trim() : "";
+            const hp = cols[hpIdx] ? cols[hpIdx].toLowerCase() : "";
+            const segment = cols[segmentIdx] ? cols[segmentIdx].toLowerCase() : "";
 
-            const budgetOk = price <= userChoices.budget;
-            const rangeOk = range >= userChoices.range;
-            const hpOk = userChoices.heatpump === "All" || hp.toLowerCase() === "yes";
-            const segmentOk = segment.toLowerCase().includes(userChoices.segment.toLowerCase());
-
-            return budgetOk && rangeOk && hpOk && segmentOk;
+            return price <= userChoices.budget &&
+                   range >= userChoices.range &&
+                   (userChoices.heatpump === "All" || hp.includes("yes")) &&
+                   segment.includes(userChoices.segment.toLowerCase());
         }).slice(0, 6);
 
-        if (filtered.length === 0) {
-            carList.innerHTML = "<p>Seçimlerinize uygun araç bulunamadı. Lütfen bütçeyi artırıp tekrar deneyin.</p>";
+        if (results.length === 0) {
+            carList.innerHTML = "<p>Kriterlere uygun araç bulunamadı.</p>";
         } else {
-            carList.innerHTML = filtered.map(cols => `
+            carList.innerHTML = results.map(cols => `
                 <div class="car-card">
-                    <img src="${cols[imgIdx]}" alt="${cols[modelIdx]}" onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Bulunmadi'">
+                    <img src="${cols[imgIdx]}" alt="${cols[modelIdx]}" onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Yüklenemedi'">
                     <h3>${cols[modelIdx]}</h3>
                     <p><strong>Menzil:</strong> ${cols[rangeIdx]} km</p>
-                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase() === 'yes' ? '✅ Var' : '❌ Yok'}</p>
-                    <p class="price-tag">Fiyat: ${cols[priceIdx]} </p>
+                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx].toLowerCase().includes('yes') ? '✅ Var' : '❌ Yok'}</p>
+                    <p class="price-tag">Fiyat: ${cols[priceIdx]} TL</p>
                 </div>
             `).join('');
         }
-    } catch (err) {
-        carList.innerHTML = "<p>Veri çekme hatası! CSV dosyasının adını ve konumunu kontrol edin.</p>";
+    } catch (e) {
+        carList.innerHTML = "<p>Veri çekme hatası! Lütfen CSV dosyasını kontrol edin.</p>";
     }
 }
 
