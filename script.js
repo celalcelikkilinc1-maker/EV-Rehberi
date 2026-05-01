@@ -1,8 +1,3 @@
-/* 
-   Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Teknolojisi 
-   Proje: EV-Asistan 
-*/
-
 const questions = [
     {
         id: "budget",
@@ -10,7 +5,7 @@ const questions = [
         options: [
             { text: "1.500.000 TL Altı", value: 1500000 },
             { text: "1.500.000 - 3.000.000 TL", value: 3000000 },
-            { text: "Sınır Yok", value: 100000000 }
+            { text: "Sınır Yok", value: 99999999 }
         ]
     },
     {
@@ -72,51 +67,53 @@ async function showResults() {
     document.getElementById("quiz-container").classList.add("hidden");
     document.getElementById("result-container").classList.remove("hidden");
     const carList = document.getElementById("car-list");
-    carList.innerHTML = "<p>Uygun araçlar hesaplanıyor...</p>";
+    carList.innerHTML = "<p>Veritabanı taranıyor ve fiyatlar hesaplanıyor...</p>";
 
     try {
-        const response = await fetch('ev_veritabani_TR_fiyatli.csv');
-        const data = await response.text();
-        const rows = data.split('\n');
+        const response = await fetch('ev_veritabani_TR_fiyatli_2.csv');
+        const csvData = await response.text();
+        const rows = csvData.split('\n');
         const headers = rows[0].split(',');
-        
-        // Sütun indekslerini bulalım (CSV yapısına göre)
+
+        // Sütun indekslerini bul
         const modelIdx = headers.indexOf('Model');
         const priceIdx = headers.indexOf('Tahmini_TR_Fiyati_TL');
         const rangeIdx = headers.indexOf('Electric Range *');
         const hpIdx = headers.indexOf('Heat pump (HP)');
         const segmentIdx = headers.indexOf('Segment');
+        const imgIdx = headers.indexOf('Resim_Link');
 
-        const results = rows.slice(1).map(row => row.split(',')).filter(cols => {
-            if (cols.length < 10) return false;
-            
+        const filtered = rows.slice(1).map(row => row.split(',')).filter(cols => {
+            if (cols.length < 5) return false;
+
             const price = parseFloat(cols[priceIdx]) || 0;
             const range = parseInt(cols[rangeIdx]) || 0;
-            const hp = cols[hpIdx];
-            const segment = cols[segmentIdx];
+            const hp = cols[hpIdx] ? cols[hpIdx].trim() : "";
+            const segment = cols[segmentIdx] ? cols[segmentIdx].trim() : "";
 
-            const budgetMatch = price <= userChoices.budget;
-            const rangeMatch = range >= userChoices.range;
-            const hpMatch = userChoices.heatpump === "All" || hp === "Yes";
-            const segmentMatch = segment.includes(userChoices.segment);
+            const budgetOk = price <= userChoices.budget;
+            const rangeOk = range >= userChoices.range;
+            const hpOk = userChoices.heatpump === "All" || hp === "Yes";
+            const segmentOk = segment.includes(userChoices.segment);
 
-            return budgetMatch && rangeMatch && hpMatch && segmentMatch;
+            return budgetOk && rangeOk && hpOk && segmentOk;
         }).slice(0, 5);
 
-        if (results.length === 0) {
-            carList.innerHTML = "<p>Kriterlerinize uygun araç bulunamadı.</p>";
+        if (filtered.length === 0) {
+            carList.innerHTML = "<p>Üzgünüz, kriterlerinize uygun bir araç bulunamadı.</p>";
         } else {
-            carList.innerHTML = results.map(cols => `
+            carList.innerHTML = filtered.map(cols => `
                 <div class="car-card">
+                    <img src="${cols[imgIdx]}" alt="${cols[modelIdx]}" onerror="this.src='https://via.placeholder.com/400x250?text=Gorsel+Bulunamadi'">
                     <h3>${cols[modelIdx]}</h3>
                     <p><strong>Menzil:</strong> ${cols[rangeIdx]} km</p>
-                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx] === 'Yes' ? 'Var' : 'Yok'}</p>
-                    <p><strong>Tahmini Fiyat:</strong> ${parseFloat(cols[priceIdx]).toLocaleString('tr-TR')} TL</p>
+                    <p><strong>Isı Pompası:</strong> ${cols[hpIdx] === 'Yes' ? '✅ Mevcut' : '❌ Mevcut Değil'}</p>
+                    <p class="price-tag">Tahmini Fiyat: ${parseFloat(cols[priceIdx]).toLocaleString('tr-TR')} TL</p>
                 </div>
             `).join('');
         }
-    } catch (e) {
-        carList.innerHTML = "<p>Veritabanı okunurken bir hata oluştu.</p>";
+    } catch (err) {
+        carList.innerHTML = "<p>Veri yüklenirken hata oluştu. Lütfen dosya adını kontrol edin.</p>";
     }
 }
 
