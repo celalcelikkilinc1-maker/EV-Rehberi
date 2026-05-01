@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV-Asistan | En Uygun Elektrikli Aracını Bul</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ EV-Asistan</h1>
+            <p>Bursa Uludağ Üniversitesi - Hibrit ve Elektrikli Taşıtlar Projesi</p>
+        </header>
+
+        <div id="quiz-container">
+            <div id="question-box">
+                <h2 id="question-text">Yükleniyor...</h2>
+                <div id="options-container"></div>
+            </div>
+        </div>
+
+        <div id="result-container" class="hidden">
+            <h2>Senin İçin En Uygun Araçlar:</h2>
+            <div id="car-list"></div>
+            <button onclick="location.reload()" class="reset-btn">Testi Tekrarla</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
